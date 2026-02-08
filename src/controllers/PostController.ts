@@ -161,22 +161,26 @@ export const PostController = {
 
   async getFeed(req: Request, res: Response) {
     try {
-      const { userId } = req.query;
-      if(!userId){
-        return res.status(400).json({ error: 'userId query parameter is required' });
-      }
-      const paginationParams = { limit, offset };
-      const { error, value } = paginationValidation.validate(paginationParams);
-      
-      if (error) {
-        return res.status(400).json({ error: error.details[0].message });
-      }
-
+      const { userId, limit, offset } = req.query;
+    
       if (!userId) {
         return res.status(400).json({ error: 'userId query parameter is required' });
       }
 
-      const { limit, offset } = value;
+      // Validate pagination params separately
+      const paginationParams = { 
+        limit: limit ? Number(limit) : 10, 
+        offset: offset ? Number(offset) : 0 
+      };
+    
+      const { error, value } = paginationValidation.validate(paginationParams);
+    
+      if (error) {
+        return res.status(400).json({ error: error.details[0].message });
+      }
+
+      const finalLimit = value.limit;
+      const finalOffset = value.offset;
 
       // Get users that the current user follows
       const follows = await followRepository.find({
@@ -187,14 +191,14 @@ export const PostController = {
       const followingIds = follows.map(f => f.followingId);
 
       if (followingIds.length === 0) {
-        return res.json({ posts: [], total: 0, limit, offset });
+        return res.json({ posts: [], total: 0, limit: finalLimit, offset: finalOffset });
       }
 
       const [posts, total] = await postRepository.findAndCount({
         where: { authorId: In(followingIds) },
         relations: ['author', 'hashtags', 'likes'],
-        take: limit,
-        skip: offset,
+        take: finalLimit,
+        skip: finalOffset,
         order: { createdAt: 'DESC' }
       });
 
@@ -213,12 +217,12 @@ export const PostController = {
         likeCount: post.likes?.length || 0
       }));
 
-      res.json({ posts: postsWithCounts, total, limit, offset });
+      res.json({ posts: postsWithCounts, total, limit: finalLimit, offset: finalOffset });
     } catch (error) {
-      console.error(error);
+      console.error('Feed error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
-  },
+},
 
   async getByHashtag(req: Request, res: Response) {
     try {
