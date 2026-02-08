@@ -162,7 +162,11 @@ export const PostController = {
   async getFeed(req: Request, res: Response) {
     try {
       const { userId } = req.query;
-      const { error, value } = paginationValidation.validate(req.query);
+      if(!userId){
+        return res.status(400).json({ error: 'userId query parameter is required' });
+      }
+      const paginationParams = { limit, offset };
+      const { error, value } = paginationValidation.validate(paginationParams);
       
       if (error) {
         return res.status(400).json({ error: error.details[0].message });
